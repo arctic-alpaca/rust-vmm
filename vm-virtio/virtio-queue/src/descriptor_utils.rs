@@ -8,7 +8,6 @@
 
 use std::collections::VecDeque;
 use std::io::{self, Read, Write};
-use std::mem::{size_of, MaybeUninit};
 use std::ops::Deref;
 use std::ptr::copy_nonoverlapping;
 use std::{cmp, result};
@@ -192,18 +191,9 @@ impl<'a, B: BitmapSlice> Reader<'a, B> {
 
     /// Reads an object from the descriptor chain buffer.
     pub fn read_obj<T: Copy + Send + Sync + FromBytes + IntoBytes>(&mut self) -> io::Result<T> {
-        let mut obj = MaybeUninit::<T>::uninit();
-
-        // SAFETY: `MaybeUninit` guarantees that the pointer is valid for
-        // `size_of::<T>()` bytes.
-        let buf = unsafe {
-            ::std::slice::from_raw_parts_mut(obj.as_mut_ptr() as *mut u8, size_of::<T>())
-        };
-
-        self.read_exact(buf)?;
-
-        // SAFETY: for any type that implements `FromBytes` any bit pattern is valid.
-        Ok(unsafe { obj.assume_init() })
+        let mut obj = T::new_zeroed();
+        self.read_exact(obj.as_mut_bytes())?;
+        Ok(obj)
     }
 
     /// Returns number of bytes available for reading.  May return an error if the combined
